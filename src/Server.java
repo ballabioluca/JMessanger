@@ -1,7 +1,7 @@
 import java.net.*;
 import java.io.*;
 
-public class server {
+public class Server {
     public static void main(String[] args) {
         System.out.println("SERVER ONLINE");
         try (ServerSocket ss = new ServerSocket(4999)) {

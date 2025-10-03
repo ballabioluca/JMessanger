@@ -4,7 +4,7 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.net.Socket;
 
-public class client {
+public class Client {
     public static void main(String[] args) {
         try (Socket socket = new Socket("localhost", 4999);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
@@ -12,7 +12,7 @@ public class client {
 
             System.out.println("Scrivi un messaggio e premi INVIO:");
             String linea = userInput.readLine();   // legge una riga da tastiera
-            out.println(linea);                   // invia la riga al server
+            out.println(linea);                   // invia la riga al main
             System.out.println("Messaggio inviato: " + linea);
 
         } catch (IOException e) {
