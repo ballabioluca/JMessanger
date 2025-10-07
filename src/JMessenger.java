@@ -6,8 +6,15 @@ public class JMessenger {
     private static String destIp = null;
     private static int destPort = -1;
     private static ServerThread serverThread = null;
+    private static String myIp;
 
     public static void main(String[] args) {
+        try {
+            myIp = InetAddress.getLocalHost().getHostAddress();
+        } catch (IOException e) {
+            myIp = "127.0.0.1"; // fallback
+        }
+
         Scanner sc = new Scanner(System.in);
         System.out.println("=== JMessenger P2P CLI ===");
         System.out.println("Type /help for available commands.\n");
@@ -35,10 +42,7 @@ public class JMessenger {
                 case "/p":
                     System.out.print("Enter local port: ");
                     int newPort = readPort(sc);
-                    // Stop old server if exists
-                    if (serverThread != null) {
-                        serverThread.stopServer();
-                    }
+                    if (serverThread != null) serverThread.stopServer();
                     serverThread = new ServerThread(newPort);
                     new Thread(serverThread).start();
                     System.out.println("Server listening on port " + newPort + "...");
@@ -81,7 +85,6 @@ public class JMessenger {
         }
     }
 
-    // ---------------- SAFE PORT INPUT ----------------
     private static int readPort(Scanner sc) {
         while (true) {
             String line = sc.nextLine().trim();
@@ -99,7 +102,6 @@ public class JMessenger {
         }
     }
 
-    // ---------------- CLEAR CONSOLE ----------------
     private static void clearConsole() {
         try {
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
@@ -113,7 +115,6 @@ public class JMessenger {
         }
     }
 
-    // ---------------- SERVER THREAD ----------------
     private static class ServerThread implements Runnable {
         private ServerSocket serverSocket;
         private int port;
@@ -165,12 +166,10 @@ public class JMessenger {
         }
     }
 
-    // ---------------- CLIENT ----------------
     private static void sendMessage(String destIp, int destPort, String msg) {
         try (Socket socket = new Socket(destIp, destPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             out.println(msg);
-            String myIp = InetAddress.getLocalHost().getHostAddress();
             System.out.println(myIp + " > " + msg);
         } catch (IOException e) {
             System.out.println("Send error: " + e.getMessage());
