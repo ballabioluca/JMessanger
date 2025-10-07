@@ -19,10 +19,15 @@ public class JMessenger {
             switch (input.toLowerCase()) {
                 case "/help":
                     System.out.println("Available commands:");
-                    System.out.println("/p    - Set local listening port");
-                    System.out.println("/ip   - Set recipient IP and port");
-                    System.out.println("/exit - Exit the program");
-                    System.out.println("/help - Show this help");
+                    System.out.println("/p      - Set local listening port");
+                    System.out.println("/ip     - Set recipient IP and port");
+                    System.out.println("/exit   - Exit the program");
+                    System.out.println("/help   - Show this help");
+                    System.out.println("/clear  - Clear the console");
+                    break;
+
+                case "/clear":
+                    clearConsole();
                     break;
 
                 case "/p":
@@ -36,6 +41,7 @@ public class JMessenger {
                     System.out.print("Recipient IP: ");
                     destIp = sc.nextLine().trim();
                     if (destIp.equalsIgnoreCase("localhost")) destIp = "127.0.0.1";
+
                     System.out.print("Recipient Port: ");
                     destPort = Integer.parseInt(sc.nextLine().trim());
                     System.out.println("Recipient set to " + destIp + ":" + destPort);
@@ -57,6 +63,22 @@ public class JMessenger {
         }
     }
 
+    // ---------------- CONSOLE CLEAR ----------------
+    private static void clearConsole() {
+        try {
+            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
+            } else {
+                System.out.print("\033[H\033[2J");
+                System.out.flush();
+            }
+        } catch (Exception e) {
+            // Fallback: print blank lines
+            for (int i = 0; i < 50; i++) System.out.println();
+        }
+    }
+
+    // ---------------- SERVER ----------------
     private static void startServer(int port) {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
@@ -81,6 +103,7 @@ public class JMessenger {
         }
     }
 
+    // ---------------- CLIENT ----------------
     private static void sendMessage(String destIp, int destPort, String msg) {
         try (Socket socket = new Socket(destIp, destPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
