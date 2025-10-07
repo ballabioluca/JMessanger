@@ -5,7 +5,7 @@ import java.util.Scanner;
 public class JMessenger {
     private static String destIp = null;
     private static int destPort = -1;
-    private static int localPort = -1;
+    private static ServerThread serverThread = null;
 
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
@@ -15,13 +15,14 @@ public class JMessenger {
         while (true) {
             System.out.print("> ");
             String input = sc.nextLine().trim();
-            if (input.isEmpty()) continue; // ignore empty input
+            if (input.isEmpty()) continue;
 
             switch (input.toLowerCase()) {
                 case "/help":
                     System.out.println("Available commands:");
                     System.out.println("/p      - Set local listening port");
                     System.out.println("/ip     - Set recipient IP and port");
+                    System.out.println("/info   - Show local port and current recipient info");
                     System.out.println("/exit   - Exit the program");
                     System.out.println("/help   - Show this help");
                     System.out.println("/clear  - Clear the console");
@@ -33,9 +34,14 @@ public class JMessenger {
 
                 case "/p":
                     System.out.print("Enter local port: ");
-                    localPort = readPort(sc);
-                    new Thread(() -> startServer(localPort)).start();
-                    System.out.println("Server listening on port " + localPort + "...");
+                    int newPort = readPort(sc);
+                    // Stop old server if exists
+                    if (serverThread != null) {
+                        serverThread.stopServer();
+                    }
+                    serverThread = new ServerThread(newPort);
+                    new Thread(serverThread).start();
+                    System.out.println("Server listening on port " + newPort + "...");
                     break;
 
                 case "/ip":
@@ -52,8 +58,15 @@ public class JMessenger {
                     System.out.println("Recipient set to " + destIp + ":" + destPort);
                     break;
 
+                case "/info":
+                    System.out.println("Local listening port: " + (serverThread != null ? serverThread.getPort() : "not set"));
+                    System.out.println("Destination IP: " + (destIp != null ? destIp : "not set"));
+                    System.out.println("Destination Port: " + (destPort != -1 ? destPort : "not set"));
+                    break;
+
                 case "/exit":
                     System.out.println("Exiting...");
+                    if (serverThread != null) serverThread.stopServer();
                     sc.close();
                     return;
 
@@ -96,32 +109,59 @@ public class JMessenger {
                 System.out.flush();
             }
         } catch (Exception e) {
-            for (int i = 0; i < 50; i++) System.out.println(); // fallback
+            for (int i = 0; i < 50; i++) System.out.println();
         }
     }
 
-    // ---------------- SERVER ----------------
-    private static void startServer(int port) {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            while (true) {
-                Socket socket = serverSocket.accept();
-                new Thread(() -> handleClient(socket)).start();
-            }
-        } catch (IOException e) {
-            System.out.println("Server error: " + e.getMessage());
-        }
-    }
+    // ---------------- SERVER THREAD ----------------
+    private static class ServerThread implements Runnable {
+        private ServerSocket serverSocket;
+        private int port;
+        private boolean running = true;
 
-    private static void handleClient(Socket socket) {
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-            String senderIp = socket.getInetAddress().getHostAddress();
-            String msg;
-            while ((msg = in.readLine()) != null) {
-                System.out.println("\n" + senderIp + " > " + msg);
-                System.out.print("> ");
+        public ServerThread(int port) {
+            this.port = port;
+        }
+
+        public int getPort() {
+            return this.port;
+        }
+
+        public void stopServer() {
+            running = false;
+            try {
+                if (serverSocket != null) serverSocket.close();
+            } catch (IOException ignored) {}
+        }
+
+        @Override
+        public void run() {
+            try (ServerSocket ss = new ServerSocket(port)) {
+                this.serverSocket = ss;
+                while (running) {
+                    try {
+                        Socket client = ss.accept();
+                        new Thread(() -> handleClient(client)).start();
+                    } catch (IOException e) {
+                        if (running) System.out.println("Server error: " + e.getMessage());
+                    }
+                }
+            } catch (IOException e) {
+                System.out.println("Server could not start: " + e.getMessage());
             }
-        } catch (IOException e) {
-            System.out.println("Connection closed by " + socket.getInetAddress().getHostAddress());
+        }
+
+        private void handleClient(Socket socket) {
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                String senderIp = socket.getInetAddress().getHostAddress();
+                String msg;
+                while ((msg = in.readLine()) != null) {
+                    System.out.println("\n" + senderIp + " > " + msg);
+                    System.out.print("> ");
+                }
+            } catch (IOException e) {
+                System.out.println("Connection closed by " + socket.getInetAddress().getHostAddress());
+            }
         }
     }
 
