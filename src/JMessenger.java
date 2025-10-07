@@ -16,7 +16,9 @@ public class JMessenger {
         }
 
         Scanner sc = new Scanner(System.in);
-        System.out.println("=== JMessenger P2P CLI ===");
+        System.out.println("============== JMessenger CLI ==============");
+        System.out.println("=== Luca Ballabio, OpenAI ChatGTP-5 mini ===");
+        System.out.println("============================================");
         System.out.println("Type /help for available commands.\n");
 
         while (true) {
@@ -117,7 +119,7 @@ public class JMessenger {
 
     private static class ServerThread implements Runnable {
         private ServerSocket serverSocket;
-        private int port;
+        private final int port;
         private boolean running = true;
 
         public ServerThread(int port) {
