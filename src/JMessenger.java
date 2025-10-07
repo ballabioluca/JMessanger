@@ -3,44 +3,60 @@ import java.net.*;
 import java.util.Scanner;
 
 public class JMessenger {
+    private static String destIp = null;
+    private static int destPort = -1;
+    private static int localPort = -1;
+
     public static void main(String[] args) {
         Scanner sc = new Scanner(System.in);
-
-        System.out.print("Porta locale per la ricezione: ");
-        int localPort = sc.nextInt();
-        sc.nextLine();
-
-        // Avvia server in background
-        new Thread(() -> startServer(localPort)).start();
-        System.out.println("In ascolto sulla porta " + localPort + "...\n");
+        System.out.println("=== JMessenger P2P CLI ===");
+        System.out.println("Type /help for available commands.\n");
 
         while (true) {
             System.out.print("> ");
             String input = sc.nextLine().trim();
 
-            // Scrivendo 0 si esce, senza messaggi aggiuntivi
-            if (input.equals("0")) break;
+            switch (input.toLowerCase()) {
+                case "/help":
+                    System.out.println("Available commands:");
+                    System.out.println("/p    - Set local listening port");
+                    System.out.println("/ip   - Set recipient IP and port");
+                    System.out.println("/exit - Exit the program");
+                    System.out.println("/help - Show this help");
+                    break;
 
-            try {
-                System.out.print("Porta destinatario: ");
-                int destPort = Integer.parseInt(sc.nextLine().trim());
+                case "/p":
+                    System.out.print("Enter local port: ");
+                    localPort = Integer.parseInt(sc.nextLine().trim());
+                    new Thread(() -> startServer(localPort)).start();
+                    System.out.println("Server listening on port " + localPort + "...");
+                    break;
 
-                System.out.print("Messaggio: ");
-                String msg = sc.nextLine();
+                case "/ip":
+                    System.out.print("Recipient IP: ");
+                    destIp = sc.nextLine().trim();
+                    if (destIp.equalsIgnoreCase("localhost")) destIp = "127.0.0.1";
+                    System.out.print("Recipient Port: ");
+                    destPort = Integer.parseInt(sc.nextLine().trim());
+                    System.out.println("Recipient set to " + destIp + ":" + destPort);
+                    break;
 
-                // Se l'IP è "localhost", lo accetta come valido
-                String destIp = input.equalsIgnoreCase("localhost") ? "127.0.0.1" : input;
+                case "/exit":
+                    System.out.println("Exiting...");
+                    sc.close();
+                    return;
 
-                sendMessage(destIp, destPort, msg);
-            } catch (Exception e) {
-                System.out.println("Errore: " + e.getMessage());
+                default:
+                    if (destIp == null || destPort == -1) {
+                        System.out.println("Recipient not set. Use /ip to set recipient.");
+                    } else {
+                        sendMessage(destIp, destPort, input);
+                    }
+                    break;
             }
         }
-
-        sc.close();
     }
 
-    // ---------------- SERVER ----------------
     private static void startServer(int port) {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             while (true) {
@@ -48,7 +64,7 @@ public class JMessenger {
                 new Thread(() -> handleClient(socket)).start();
             }
         } catch (IOException e) {
-            System.out.println("Errore server: " + e.getMessage());
+            System.out.println("Server error: " + e.getMessage());
         }
     }
 
@@ -61,18 +77,18 @@ public class JMessenger {
                 System.out.print("> ");
             }
         } catch (IOException e) {
-            System.out.println("Errore ricezione messaggio: " + e.getMessage());
+            System.out.println("Connection closed by " + socket.getInetAddress().getHostAddress());
         }
     }
 
-    // ---------------- CLIENT ----------------
     private static void sendMessage(String destIp, int destPort, String msg) {
         try (Socket socket = new Socket(destIp, destPort);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             out.println(msg);
-            System.out.println("Tu > " + msg);
+            String myIp = InetAddress.getLocalHost().getHostAddress();
+            System.out.println(myIp + " > " + msg);
         } catch (IOException e) {
-            System.out.println("Errore invio: " + e.getMessage());
+            System.out.println("Send error: " + e.getMessage());
         }
     }
 }
