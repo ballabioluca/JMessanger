@@ -15,6 +15,7 @@ public class JMessenger {
         while (true) {
             System.out.print("> ");
             String input = sc.nextLine().trim();
+            if (input.isEmpty()) continue; // ignore empty input
 
             switch (input.toLowerCase()) {
                 case "/help":
@@ -32,18 +33,22 @@ public class JMessenger {
 
                 case "/p":
                     System.out.print("Enter local port: ");
-                    localPort = Integer.parseInt(sc.nextLine().trim());
+                    localPort = readPort(sc);
                     new Thread(() -> startServer(localPort)).start();
                     System.out.println("Server listening on port " + localPort + "...");
                     break;
 
                 case "/ip":
                     System.out.print("Recipient IP: ");
-                    destIp = sc.nextLine().trim();
-                    if (destIp.equalsIgnoreCase("localhost")) destIp = "127.0.0.1";
+                    String ipInput = sc.nextLine().trim();
+                    if (ipInput.isEmpty()) {
+                        System.out.println("IP cannot be empty.");
+                        break;
+                    }
+                    destIp = ipInput.equalsIgnoreCase("localhost") ? "127.0.0.1" : ipInput;
 
                     System.out.print("Recipient Port: ");
-                    destPort = Integer.parseInt(sc.nextLine().trim());
+                    destPort = readPort(sc);
                     System.out.println("Recipient set to " + destIp + ":" + destPort);
                     break;
 
@@ -63,7 +68,25 @@ public class JMessenger {
         }
     }
 
-    // ---------------- CONSOLE CLEAR ----------------
+    // ---------------- SAFE PORT INPUT ----------------
+    private static int readPort(Scanner sc) {
+        while (true) {
+            String line = sc.nextLine().trim();
+            if (line.isEmpty()) {
+                System.out.print("Port cannot be empty. Try again: ");
+                continue;
+            }
+            try {
+                int port = Integer.parseInt(line);
+                if (port > 0 && port <= 65535) return port;
+                System.out.print("Invalid port range (1-65535). Try again: ");
+            } catch (NumberFormatException e) {
+                System.out.print("Invalid number. Try again: ");
+            }
+        }
+    }
+
+    // ---------------- CLEAR CONSOLE ----------------
     private static void clearConsole() {
         try {
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
@@ -73,8 +96,7 @@ public class JMessenger {
                 System.out.flush();
             }
         } catch (Exception e) {
-            // Fallback: print blank lines
-            for (int i = 0; i < 50; i++) System.out.println();
+            for (int i = 0; i < 50; i++) System.out.println(); // fallback
         }
     }
 
