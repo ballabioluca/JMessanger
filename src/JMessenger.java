@@ -16,9 +16,9 @@ public class JMessenger {
         }
 
         Scanner sc = new Scanner(System.in);
-        System.out.println("============== JMessenger CLI ==============");
-        System.out.println("=== Luca Ballabio, OpenAI ChatGTP-5 mini ===");
-        System.out.println("============================================");
+        System.out.println("=================== JMessenger CLI ===================");
+        System.out.println("=== Luca Ballabio assisted by OpenAI ChatGTP5-mini ===");
+        System.out.println("======================================================");
         System.out.println("Type /help for available commands.\n");
 
         while (true) {
