@@ -31,7 +31,7 @@ public class JMessenger {
                     System.out.println("Available commands:");
                     System.out.println("/p      - Set local listening port");
                     System.out.println("/ip     - Set recipient IP and port");
-                    System.out.println("/info   - Show local port and current recipient info");
+                    System.out.println("/info   - Show local ip, port and current recipient info");
                     System.out.println("/exit   - Exit the program");
                     System.out.println("/help   - Show this help");
                     System.out.println("/clear  - Clear the console");
@@ -65,10 +65,12 @@ public class JMessenger {
                     break;
 
                 case "/info":
+                    System.out.println("Your IP: " + myIp);
                     System.out.println("Local listening port: " + (serverThread != null ? serverThread.getPort() : "not set"));
                     System.out.println("Destination IP: " + (destIp != null ? destIp : "not set"));
                     System.out.println("Destination Port: " + (destPort != -1 ? destPort : "not set"));
                     break;
+
 
                 case "/exit":
                     System.out.println("Exiting...");
