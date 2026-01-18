@@ -15,5 +15,6 @@ Made by Luca Ballabio helped in great form by OpenAI's ChatGPT5-mini
 
 /exit  --> ...
 
-New features such as cryptation and gui could be added in the future
+New features such as cryptation and gui could be added in the future.
+
 Copyright free.
