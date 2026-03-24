@@ -1,11 +1,11 @@
 import java.io.*;
 import java.net.*;
-import java.util.Enumeration;
-import java.util.Scanner;
+import java.util.*;
 
 public class JMessenger {
     private static int currentPort = 5000;
-    private static String destIp = null;
+    private static String singleDestIp = null;
+    private static final Set<String> groupList = new LinkedHashSet<>();
     private static ServerThread serverThread = null;
     private static String myIp;
 
@@ -13,7 +13,7 @@ public class JMessenger {
         myIp = getRealIp();
         Scanner sc = new Scanner(System.in);
 
-        System.out.println("JMessenger CLI");
+        System.out.println("JMessenger Hybrid [P2P + Group]");
         System.out.println("Your IP: " + myIp + " | Port: " + currentPort);
         System.out.println("Type 'help' for commands.\n");
 
@@ -30,37 +30,40 @@ public class JMessenger {
 
             switch (cmd) {
                 case "help":
-                    System.out.println("Available commands:");
-                    System.out.println("ip <address>   - Set recipient IP");
-                    System.out.println("port <number>  - Change port and restart server");
-                    System.out.println("info           - Show connection info");
-                    System.out.println("exit           - Exit program");
+                    printHelp();
                     break;
 
+                // --- SINGLE P2P COMMANDS ---
                 case "ip":
-                    if (argsStr.isEmpty()) {
-                        System.out.println("Usage: ip <address>");
+                    if (!argsStr.isEmpty()) {
+                        singleDestIp = argsStr;
+                        System.out.println("Single recipient set to: " + singleDestIp);
                     } else {
-                        destIp = argsStr;
-                        System.out.println("Recipient set to " + destIp);
+                        System.out.println("Usage: ip <address>");
                     }
                     break;
 
-                case "port":
-                    if (argsStr.isEmpty()) {
-                        System.out.println("Current port: " + currentPort);
-                    } else {
-                        try {
-                            restartServer(Integer.parseInt(argsStr));
-                        } catch (Exception e) {
-                            System.out.println("Invalid port.");
-                        }
+                // --- GROUP COMMANDS ---
+                case "add":
+                    if (!argsStr.isEmpty()) {
+                        groupList.add(argsStr);
+                        System.out.println("Added to group: " + argsStr);
                     }
+                    break;
+
+                case "list":
+                    System.out.println("Group contacts: " + groupList);
+                    break;
+
+                case "clearlist":
+                    groupList.clear();
+                    System.out.println("Group list cleared.");
                     break;
 
                 case "info":
-                    System.out.println("Local: " + myIp + ":" + currentPort);
-                    System.out.println("Recipient: " + (destIp != null ? destIp : "not set"));
+                    System.out.println("Local IP: " + myIp);
+                    System.out.println("Single Target: " + (singleDestIp != null ? singleDestIp : "None"));
+                    System.out.println("Group Size: " + groupList.size());
                     break;
 
                 case "exit":
@@ -68,26 +71,59 @@ public class JMessenger {
                     return;
 
                 default:
-                    if (destIp == null) {
-                        System.out.println("Set recipient IP first using 'ip'.");
-                    } else {
-                        sendMessage(destIp, currentPort, input);
-                    }
+                    handleMessaging(input);
                     break;
             }
         }
     }
 
+    private static void printHelp() {
+        System.out.println("\nAvailable commands:");
+        System.out.println("ip <address>    - Set a single recipient for 1-to-1 chat");
+        System.out.println("add <address>   - Add an IP to the group list");
+        System.out.println("list            - Show all group members");
+        System.out.println("clearlist       - Remove everyone from the group");
+        System.out.println("info            - Show connection status");
+        System.out.println("exit            - Quit");
+    }
+
+    private static void handleMessaging(String msg) {
+        // Se la lista di gruppo non è vuota, invia a tutti (incluso il singleDestIp se presente)
+        if (!groupList.isEmpty()) {
+            for (String ip : groupList) {
+                sendUnicast(ip, msg, false);
+            }
+            System.out.println("You (Group) > " + msg);
+        }
+        // Altrimenti, se è impostato solo un IP singolo, invia solo a quello
+        else if (singleDestIp != null) {
+            sendUnicast(singleDestIp, msg, true);
+        }
+        else {
+            System.out.println("Error: No recipient or group list set. Use 'ip' or 'add'.");
+        }
+    }
+
+    private static void sendUnicast(String ip, String msg, boolean printLabel) {
+        new Thread(() -> {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(ip, currentPort), 1000);
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+                out.println(msg);
+                if (printLabel) {
+                    synchronized (System.out) {
+                        System.out.println("You > " + msg);
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("\n[System] Failed to reach: " + ip);
+            }
+        }).start();
+    }
+
     private static void startServer() {
         serverThread = new ServerThread(currentPort);
         new Thread(serverThread).start();
-    }
-
-    private static void restartServer(int newPort) {
-        serverThread.stopServer();
-        currentPort = newPort;
-        startServer();
-        System.out.println("Server restarted on port " + currentPort);
     }
 
     private static String getRealIp() {
@@ -127,7 +163,7 @@ public class JMessenger {
                     new Thread(() -> handleClient(client)).start();
                 }
             } catch (IOException e) {
-                if (running) System.out.println("Server error: " + e.getMessage());
+                if (running) System.out.println("Server error.");
             }
         }
 
@@ -141,16 +177,6 @@ public class JMessenger {
                     }
                 }
             } catch (IOException ignored) {}
-        }
-    }
-
-    private static void sendMessage(String ip, int port, String msg) {
-        try (Socket socket = new Socket(ip, port);
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            out.println(msg);
-            System.out.println("You > " + msg);
-        } catch (IOException e) {
-            System.out.println("Send error: unreachable host.");
         }
     }
 }
