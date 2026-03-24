@@ -5,18 +5,15 @@ Made by Luca Ballabio helped in great form by OpenAI's ChatGPT5-mini
 
 /ip    --> Set destination IP (localhost is avaible) and PORT
 
-/p     --> Set own reception port
-
 /info  --> Shows current configuration
 
-/clear --> Clears interface
+/clear --> Clears interface (INOP su ItelliJ)
 
 /help  --> ...
 
 /exit  --> ...
 
-New features such as cryptation and gui could be added in the future.
 
-10.1.33. PC LAB
+10.1.33.<NUMERO PC LAB>
 
 Copyright free.
