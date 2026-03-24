@@ -1,171 +1,156 @@
 import java.io.*;
 import java.net.*;
+import java.util.Enumeration;
 import java.util.Scanner;
 
 public class JMessenger {
-    private static final int DEFAULT_PORT = 5000;
-
+    private static int currentPort = 5000;
     private static String destIp = null;
     private static ServerThread serverThread = null;
     private static String myIp;
 
     public static void main(String[] args) {
-        try {
-            myIp = InetAddress.getLocalHost().getHostAddress();
-        } catch (IOException e) {
-            myIp = "127.0.0.1";
-        }
-
+        myIp = getRealIp();
         Scanner sc = new Scanner(System.in);
 
-        System.out.println("=================== JMessenger CLI ===================");
-        System.out.println("=== Luca Ballabio assisted by OpenAI ChatGPT ===");
-        System.out.println("======================================================");
-        System.out.println("Server auto-starts on port " + DEFAULT_PORT);
-        System.out.println("Type /help for available commands.\n");
+        System.out.println("JMessenger CLI");
+        System.out.println("Your IP: " + myIp + " | Port: " + currentPort);
+        System.out.println("Type 'help' for commands.\n");
 
-        // ✅ Start server automatically
-        serverThread = new ServerThread(DEFAULT_PORT);
-        new Thread(serverThread).start();
+        startServer();
 
         while (true) {
             System.out.print("> ");
             String input = sc.nextLine().trim();
             if (input.isEmpty()) continue;
 
-            switch (input.toLowerCase()) {
+            String[] parts = input.split("\\s+", 2);
+            String cmd = parts[0].toLowerCase();
+            String argsStr = (parts.length > 1) ? parts[1] : "";
 
-                case "/help":
+            switch (cmd) {
+                case "help":
                     System.out.println("Available commands:");
-                    System.out.println("/ip     - Set recipient IP");
-                    System.out.println("/info   - Show local and recipient info");
-                    System.out.println("/clear  - Clear console");
-                    System.out.println("/exit   - Exit program");
+                    System.out.println("ip <address>   - Set recipient IP");
+                    System.out.println("port <number>  - Change port and restart server");
+                    System.out.println("info           - Show connection info");
+                    System.out.println("exit           - Exit program");
                     break;
 
-                case "/clear":
-                    clearConsole();
-                    break;
-
-                case "/ip":
-                    System.out.print("Recipient IP: ");
-                    String ipInput = sc.nextLine().trim();
-
-                    if (ipInput.isEmpty()) {
-                        System.out.println("IP cannot be empty.");
-                        break;
-                    }
-
-                    try {
-                        InetAddress.getByName(ipInput); // validate
-                        destIp = ipInput.equalsIgnoreCase("localhost") ? "127.0.0.1" : ipInput;
-                        System.out.println("Recipient set to " + destIp + ":" + DEFAULT_PORT);
-                    } catch (Exception e) {
-                        System.out.println("Invalid IP address.");
+                case "ip":
+                    if (argsStr.isEmpty()) {
+                        System.out.println("Usage: ip <address>");
+                    } else {
+                        destIp = argsStr;
+                        System.out.println("Recipient set to " + destIp);
                     }
                     break;
 
-                case "/info":
-                    System.out.println("Your IP: " + myIp);
-                    System.out.println("Listening on port: " + DEFAULT_PORT);
-                    System.out.println("Destination IP: " + (destIp != null ? destIp : "not set"));
-                    System.out.println("Destination Port: " + (destIp != null ? DEFAULT_PORT : "not set"));
+                case "port":
+                    if (argsStr.isEmpty()) {
+                        System.out.println("Current port: " + currentPort);
+                    } else {
+                        try {
+                            restartServer(Integer.parseInt(argsStr));
+                        } catch (Exception e) {
+                            System.out.println("Invalid port.");
+                        }
+                    }
                     break;
 
-                case "/exit":
-                    System.out.println("Exiting...");
+                case "info":
+                    System.out.println("Local: " + myIp + ":" + currentPort);
+                    System.out.println("Recipient: " + (destIp != null ? destIp : "not set"));
+                    break;
+
+                case "exit":
                     if (serverThread != null) serverThread.stopServer();
-                    sc.close();
                     return;
 
                 default:
                     if (destIp == null) {
-                        System.out.println("Recipient not set. Use /ip first.");
+                        System.out.println("Set recipient IP first using 'ip'.");
                     } else {
-                        sendMessage(destIp, DEFAULT_PORT, input);
+                        sendMessage(destIp, currentPort, input);
                     }
                     break;
             }
         }
     }
 
-    private static void clearConsole() {
+    private static void startServer() {
+        serverThread = new ServerThread(currentPort);
+        new Thread(serverThread).start();
+    }
+
+    private static void restartServer(int newPort) {
+        serverThread.stopServer();
+        currentPort = newPort;
+        startServer();
+        System.out.println("Server restarted on port " + currentPort);
+    }
+
+    private static String getRealIp() {
         try {
-            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
-                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
-            } else {
-                System.out.print("\033[H\033[2J");
-                System.out.flush();
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
+                if (iface.isLoopback() || !iface.isUp() || iface.getDisplayName().toLowerCase().contains("virtual")) continue;
+                Enumeration<InetAddress> addresses = iface.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress addr = addresses.nextElement();
+                    if (addr instanceof Inet4Address) return addr.getHostAddress();
+                }
             }
-        } catch (Exception e) {
-            for (int i = 0; i < 50; i++) System.out.println();
-        }
+        } catch (Exception e) { return "127.0.0.1"; }
+        return "127.0.0.1";
     }
 
     private static class ServerThread implements Runnable {
         private ServerSocket serverSocket;
         private final int port;
-        private boolean running = true;
+        private volatile boolean running = true;
 
-        public ServerThread(int port) {
-            this.port = port;
-        }
+        public ServerThread(int port) { this.port = port; }
 
         public void stopServer() {
             running = false;
-            try {
-                if (serverSocket != null) serverSocket.close();
-            } catch (IOException ignored) {}
+            try { if (serverSocket != null) serverSocket.close(); } catch (IOException ignored) {}
         }
 
         @Override
         public void run() {
             try (ServerSocket ss = new ServerSocket(port)) {
                 this.serverSocket = ss;
-
                 while (running) {
-                    try {
-                        Socket client = ss.accept();
-                        new Thread(() -> handleClient(client)).start();
-                    } catch (IOException e) {
-                        if (running) System.out.println("Server error: " + e.getMessage());
-                    }
+                    Socket client = ss.accept();
+                    new Thread(() -> handleClient(client)).start();
                 }
             } catch (IOException e) {
-                System.out.println("Server could not start: " + e.getMessage());
+                if (running) System.out.println("Server error: " + e.getMessage());
             }
         }
 
         private void handleClient(Socket socket) {
-            try (BufferedReader in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()))) {
-
-                String senderIp = socket.getInetAddress().getHostAddress();
-                String msg;
-
-                while ((msg = in.readLine()) != null) {
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                String msg = in.readLine();
+                if (msg != null) {
                     synchronized (System.out) {
-                        System.out.println("\n" + senderIp + " > " + msg);
+                        System.out.println("\n" + socket.getInetAddress().getHostAddress() + " > " + msg);
                         System.out.print("> ");
                     }
                 }
-
-            } catch (IOException e) {
-                System.out.println("Connection closed by " +
-                        socket.getInetAddress().getHostAddress());
-            }
+            } catch (IOException ignored) {}
         }
     }
 
-    private static void sendMessage(String destIp, int port, String msg) {
-        try (Socket socket = new Socket(destIp, port);
+    private static void sendMessage(String ip, int port, String msg) {
+        try (Socket socket = new Socket(ip, port);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-
             out.println(msg);
-            System.out.println(myIp + " > " + msg);
-
+            System.out.println("You > " + msg);
         } catch (IOException e) {
-            System.out.println("Send error: " + e.getMessage());
+            System.out.println("Send error: unreachable host.");
         }
     }
 }
