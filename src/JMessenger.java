@@ -3,7 +3,8 @@ import java.net.*;
 import java.util.Scanner;
 
 public class JMessenger {
-    private static final int DEFAULT_PORT = 5000;
+    private static final int TCP_PORT = 5000;      // porta TCP
+    private static final int UDP_PORT = 5001;      // porta UDP per broadcast
 
     private static String destIp = null;
     private static boolean broadcastMode = false;
@@ -22,15 +23,16 @@ public class JMessenger {
         System.out.println("=================== JMessenger CLI ===================");
         System.out.println("=== Luca Ballabio assisted by OpenAI ChatGPT ===");
         System.out.println("======================================================");
-        System.out.println("Server auto-starts on port " + DEFAULT_PORT);
+        System.out.println("Server TCP auto-starts on port " + TCP_PORT);
+        System.out.println("UDP broadcast listener on port " + UDP_PORT);
         System.out.println("Type /help for available commands.\n");
 
         // ✅ Avvia server TCP
-        tcpServer = new ServerThread(DEFAULT_PORT);
+        tcpServer = new ServerThread(TCP_PORT);
         new Thread(tcpServer).start();
 
         // ✅ Avvia server UDP per ricevere broadcast
-        new Thread(new UdpServerThread(DEFAULT_PORT)).start();
+        new Thread(new UdpServerThread(UDP_PORT)).start();
 
         while (true) {
             System.out.print("> ");
@@ -63,7 +65,7 @@ public class JMessenger {
                     if (ipInput.equalsIgnoreCase("broadcast")) {
                         broadcastMode = true;
                         destIp = "255.255.255.255";
-                        System.out.println("Broadcast mode enabled on port " + DEFAULT_PORT);
+                        System.out.println("Broadcast mode enabled on UDP port " + UDP_PORT);
                         break;
                     }
 
@@ -71,7 +73,7 @@ public class JMessenger {
                         InetAddress.getByName(ipInput); // validate
                         destIp = ipInput.equalsIgnoreCase("localhost") ? "127.0.0.1" : ipInput;
                         broadcastMode = false;
-                        System.out.println("Recipient set to " + destIp + ":" + DEFAULT_PORT);
+                        System.out.println("Recipient set to " + destIp + ":" + TCP_PORT);
                     } catch (Exception e) {
                         System.out.println("Invalid IP address.");
                     }
@@ -79,10 +81,10 @@ public class JMessenger {
 
                 case "/info":
                     System.out.println("Your IP: " + myIp);
-                    System.out.println("Listening on port: " + DEFAULT_PORT);
+                    System.out.println("TCP Listening on port: " + TCP_PORT);
+                    System.out.println("UDP Listening on port: " + UDP_PORT);
                     System.out.println("Destination IP: " + (destIp != null ? destIp : "not set"));
-                    System.out.println("Destination Port: " + (destIp != null ? DEFAULT_PORT : "not set"));
-                    System.out.println("Mode: " + (broadcastMode ? "BROADCAST" : "TCP"));
+                    System.out.println("Mode: " + (broadcastMode ? "BROADCAST (UDP)" : "TCP"));
                     break;
 
                 case "/exit":
@@ -98,7 +100,7 @@ public class JMessenger {
                         if (broadcastMode) {
                             sendBroadcast(input);
                         } else {
-                            sendMessage(destIp, DEFAULT_PORT, input);
+                            sendMessage(destIp, TCP_PORT, input);
                         }
                     }
                     break;
@@ -139,7 +141,7 @@ public class JMessenger {
             byte[] buffer = msg.getBytes();
             InetAddress address = InetAddress.getByName("255.255.255.255");
 
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, DEFAULT_PORT);
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, UDP_PORT);
             socket.send(packet);
 
             System.out.println(myIp + " (broadcast) > " + msg);
@@ -180,7 +182,7 @@ public class JMessenger {
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Server could not start: " + e.getMessage());
+                System.out.println("TCP server could not start: " + e.getMessage());
             }
         }
 
@@ -216,7 +218,9 @@ public class JMessenger {
 
         @Override
         public void run() {
-            try (DatagramSocket socket = new DatagramSocket(port)) {
+            try (DatagramSocket socket = new DatagramSocket(null)) {
+                socket.setReuseAddress(true);          // permette riuso porta subito
+                socket.bind(new InetSocketAddress(port));
 
                 byte[] buffer = new byte[1024];
 
