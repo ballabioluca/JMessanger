@@ -3,11 +3,12 @@ import java.net.*;
 import java.util.Scanner;
 
 public class JMessenger {
-    private static final int TCP_PORT = 5000;      // porta TCP
-    private static final int UDP_PORT = 5001;      // porta UDP per broadcast
+    private static final int TCP_PORT = 5000;             // porta TCP
+    private static final int MULTICAST_PORT = 5001;       // porta UDP multicast
+    private static final String MULTICAST_GROUP = "230.0.0.1";
 
     private static String destIp = null;
-    private static boolean broadcastMode = false;
+    private static boolean multicastMode = false;
     private static ServerThread tcpServer = null;
     private static String myIp;
 
@@ -23,16 +24,16 @@ public class JMessenger {
         System.out.println("=================== JMessenger CLI ===================");
         System.out.println("=== Luca Ballabio assisted by OpenAI ChatGPT ===");
         System.out.println("======================================================");
-        System.out.println("Server TCP auto-starts on port " + TCP_PORT);
-        System.out.println("UDP broadcast listener on port " + UDP_PORT);
-        System.out.println("Type /help for available commands.\n");
+        System.out.println("TCP port: " + TCP_PORT);
+        System.out.println("Broadcast/Multicast group: " + MULTICAST_GROUP + ":" + MULTICAST_PORT);
+        System.out.println("Type /help for commands.\n");
 
-        // ✅ Avvia server TCP
+        // Avvia server TCP
         tcpServer = new ServerThread(TCP_PORT);
         new Thread(tcpServer).start();
 
-        // ✅ Avvia server UDP per ricevere broadcast
-        new Thread(new UdpServerThread(UDP_PORT)).start();
+        // Avvia server UDP multicast
+        new Thread(new MulticastServerThread(MULTICAST_GROUP, MULTICAST_PORT)).start();
 
         while (true) {
             System.out.print("> ");
@@ -42,11 +43,11 @@ public class JMessenger {
             switch (input.toLowerCase()) {
 
                 case "/help":
-                    System.out.println("Available commands:");
-                    System.out.println("/ip     - Set recipient IP or 'broadcast'");
-                    System.out.println("/info   - Show local and recipient info");
-                    System.out.println("/clear  - Clear console");
-                    System.out.println("/exit   - Exit program");
+                    System.out.println("Commands:");
+                    System.out.println("/ip           - set recipient IP or 'broadcast'");
+                    System.out.println("/info         - show info");
+                    System.out.println("/clear        - clear console");
+                    System.out.println("/exit         - exit");
                     break;
 
                 case "/clear":
@@ -63,16 +64,16 @@ public class JMessenger {
                     }
 
                     if (ipInput.equalsIgnoreCase("broadcast")) {
-                        broadcastMode = true;
-                        destIp = "255.255.255.255";
-                        System.out.println("Broadcast mode enabled on UDP port " + UDP_PORT);
+                        multicastMode = true;
+                        destIp = MULTICAST_GROUP; // usa multicast al posto di broadcast
+                        System.out.println("Broadcast mode enabled on group " + MULTICAST_GROUP + ":" + MULTICAST_PORT);
                         break;
                     }
 
                     try {
                         InetAddress.getByName(ipInput); // validate
                         destIp = ipInput.equalsIgnoreCase("localhost") ? "127.0.0.1" : ipInput;
-                        broadcastMode = false;
+                        multicastMode = false;
                         System.out.println("Recipient set to " + destIp + ":" + TCP_PORT);
                     } catch (Exception e) {
                         System.out.println("Invalid IP address.");
@@ -82,9 +83,9 @@ public class JMessenger {
                 case "/info":
                     System.out.println("Your IP: " + myIp);
                     System.out.println("TCP Listening on port: " + TCP_PORT);
-                    System.out.println("UDP Listening on port: " + UDP_PORT);
+                    System.out.println("Broadcast/Multicast group: " + MULTICAST_GROUP + ":" + MULTICAST_PORT);
                     System.out.println("Destination IP: " + (destIp != null ? destIp : "not set"));
-                    System.out.println("Mode: " + (broadcastMode ? "BROADCAST (UDP)" : "TCP"));
+                    System.out.println("Mode: " + (multicastMode ? "BROADCAST/MULTICAST" : "TCP"));
                     break;
 
                 case "/exit":
@@ -97,8 +98,8 @@ public class JMessenger {
                     if (destIp == null) {
                         System.out.println("Recipient not set. Use /ip first.");
                     } else {
-                        if (broadcastMode) {
-                            sendBroadcast(input);
+                        if (multicastMode) {
+                            sendMulticast(input);
                         } else {
                             sendMessage(destIp, TCP_PORT, input);
                         }
@@ -108,7 +109,7 @@ public class JMessenger {
         }
     }
 
-    // ================== FUNZIONI AUSILIARIE ==================
+    // ================== FUNZIONI ==================
     private static void clearConsole() {
         try {
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
@@ -125,29 +126,22 @@ public class JMessenger {
     private static void sendMessage(String destIp, int port, String msg) {
         try (Socket socket = new Socket(destIp, port);
              PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-
             out.println(msg);
             System.out.println(myIp + " > " + msg);
-
         } catch (IOException e) {
             System.out.println("Send error: " + e.getMessage());
         }
     }
 
-    private static void sendBroadcast(String msg) {
+    private static void sendMulticast(String msg) {
         try (DatagramSocket socket = new DatagramSocket()) {
-            socket.setBroadcast(true);
-
             byte[] buffer = msg.getBytes();
-            InetAddress address = InetAddress.getByName("255.255.255.255");
-
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, UDP_PORT);
+            InetAddress group = InetAddress.getByName(MULTICAST_GROUP);
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, group, MULTICAST_PORT);
             socket.send(packet);
-
             System.out.println(myIp + " (broadcast) > " + msg);
-
         } catch (IOException e) {
-            System.out.println("Broadcast error: " + e.getMessage());
+            System.out.println("Multicast send error: " + e.getMessage());
         }
     }
 
@@ -157,28 +151,23 @@ public class JMessenger {
         private final int port;
         private boolean running = true;
 
-        public ServerThread(int port) {
-            this.port = port;
-        }
+        public ServerThread(int port) { this.port = port; }
 
         public void stopServer() {
             running = false;
-            try {
-                if (serverSocket != null) serverSocket.close();
-            } catch (IOException ignored) {}
+            try { if (serverSocket != null) serverSocket.close(); } catch (IOException ignored) {}
         }
 
         @Override
         public void run() {
             try (ServerSocket ss = new ServerSocket(port)) {
                 this.serverSocket = ss;
-
                 while (running) {
                     try {
                         Socket client = ss.accept();
                         new Thread(() -> handleClient(client)).start();
                     } catch (IOException e) {
-                        if (running) System.out.println("Server error: " + e.getMessage());
+                        if (running) System.out.println("TCP server error: " + e.getMessage());
                     }
                 }
             } catch (IOException e) {
@@ -187,47 +176,42 @@ public class JMessenger {
         }
 
         private void handleClient(Socket socket) {
-            try (BufferedReader in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()))) {
-
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                 String senderIp = socket.getInetAddress().getHostAddress();
                 String msg;
-
                 while ((msg = in.readLine()) != null) {
                     synchronized (System.out) {
                         System.out.println("\n" + senderIp + " > " + msg);
                         System.out.print("> ");
                     }
                 }
-
             } catch (IOException e) {
-                System.out.println("Connection closed by " +
-                        socket.getInetAddress().getHostAddress());
+                System.out.println("Connection closed by " + socket.getInetAddress().getHostAddress());
             }
         }
     }
 
-    // ================== SERVER UDP ==================
-    private static class UdpServerThread implements Runnable {
+    // ================== SERVER MULTICAST ==================
+    private static class MulticastServerThread implements Runnable {
+        private final String groupAddress;
         private final int port;
         private boolean running = true;
 
-        public UdpServerThread(int port) {
+        public MulticastServerThread(String groupAddress, int port) {
+            this.groupAddress = groupAddress;
             this.port = port;
         }
 
         @Override
         public void run() {
-            try (DatagramSocket socket = new DatagramSocket(null)) {
-                socket.setReuseAddress(true);          // permette riuso porta subito
-                socket.bind(new InetSocketAddress(port));
+            try (MulticastSocket socket = new MulticastSocket(port)) {
+                InetAddress group = InetAddress.getByName(groupAddress);
+                socket.joinGroup(group);
 
                 byte[] buffer = new byte[1024];
-
                 while (running) {
                     DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                     socket.receive(packet);
-
                     String msg = new String(packet.getData(), 0, packet.getLength());
                     String senderIp = packet.getAddress().getHostAddress();
 
@@ -236,9 +220,8 @@ public class JMessenger {
                         System.out.print("> ");
                     }
                 }
-
             } catch (IOException e) {
-                System.out.println("UDP server error: " + e.getMessage());
+                System.out.println("Multicast server error: " + e.getMessage());
             }
         }
     }
