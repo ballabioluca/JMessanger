@@ -6,7 +6,8 @@ public class JMessenger {
     private static final int DEFAULT_PORT = 5000;
 
     private static String destIp = null;
-    private static ServerThread serverThread = null;
+    private static boolean broadcastMode = false;
+    private static ServerThread tcpServer = null;
     private static String myIp;
 
     public static void main(String[] args) {
@@ -24,9 +25,12 @@ public class JMessenger {
         System.out.println("Server auto-starts on port " + DEFAULT_PORT);
         System.out.println("Type /help for available commands.\n");
 
-        // ✅ Start server automatically
-        serverThread = new ServerThread(DEFAULT_PORT);
-        new Thread(serverThread).start();
+        // ✅ Avvia server TCP
+        tcpServer = new ServerThread(DEFAULT_PORT);
+        new Thread(tcpServer).start();
+
+        // ✅ Avvia server UDP per ricevere broadcast
+        new Thread(new UdpServerThread(DEFAULT_PORT)).start();
 
         while (true) {
             System.out.print("> ");
@@ -37,7 +41,7 @@ public class JMessenger {
 
                 case "/help":
                     System.out.println("Available commands:");
-                    System.out.println("/ip     - Set recipient IP");
+                    System.out.println("/ip     - Set recipient IP or 'broadcast'");
                     System.out.println("/info   - Show local and recipient info");
                     System.out.println("/clear  - Clear console");
                     System.out.println("/exit   - Exit program");
@@ -48,7 +52,7 @@ public class JMessenger {
                     break;
 
                 case "/ip":
-                    System.out.print("Recipient IP: ");
+                    System.out.print("Recipient IP (or 'broadcast'): ");
                     String ipInput = sc.nextLine().trim();
 
                     if (ipInput.isEmpty()) {
@@ -56,9 +60,17 @@ public class JMessenger {
                         break;
                     }
 
+                    if (ipInput.equalsIgnoreCase("broadcast")) {
+                        broadcastMode = true;
+                        destIp = "255.255.255.255";
+                        System.out.println("Broadcast mode enabled on port " + DEFAULT_PORT);
+                        break;
+                    }
+
                     try {
                         InetAddress.getByName(ipInput); // validate
                         destIp = ipInput.equalsIgnoreCase("localhost") ? "127.0.0.1" : ipInput;
+                        broadcastMode = false;
                         System.out.println("Recipient set to " + destIp + ":" + DEFAULT_PORT);
                     } catch (Exception e) {
                         System.out.println("Invalid IP address.");
@@ -70,11 +82,12 @@ public class JMessenger {
                     System.out.println("Listening on port: " + DEFAULT_PORT);
                     System.out.println("Destination IP: " + (destIp != null ? destIp : "not set"));
                     System.out.println("Destination Port: " + (destIp != null ? DEFAULT_PORT : "not set"));
+                    System.out.println("Mode: " + (broadcastMode ? "BROADCAST" : "TCP"));
                     break;
 
                 case "/exit":
                     System.out.println("Exiting...");
-                    if (serverThread != null) serverThread.stopServer();
+                    if (tcpServer != null) tcpServer.stopServer();
                     sc.close();
                     return;
 
@@ -82,13 +95,18 @@ public class JMessenger {
                     if (destIp == null) {
                         System.out.println("Recipient not set. Use /ip first.");
                     } else {
-                        sendMessage(destIp, DEFAULT_PORT, input);
+                        if (broadcastMode) {
+                            sendBroadcast(input);
+                        } else {
+                            sendMessage(destIp, DEFAULT_PORT, input);
+                        }
                     }
                     break;
             }
         }
     }
 
+    // ================== FUNZIONI AUSILIARIE ==================
     private static void clearConsole() {
         try {
             if (System.getProperty("os.name").toLowerCase().contains("windows")) {
@@ -102,6 +120,36 @@ public class JMessenger {
         }
     }
 
+    private static void sendMessage(String destIp, int port, String msg) {
+        try (Socket socket = new Socket(destIp, port);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+
+            out.println(msg);
+            System.out.println(myIp + " > " + msg);
+
+        } catch (IOException e) {
+            System.out.println("Send error: " + e.getMessage());
+        }
+    }
+
+    private static void sendBroadcast(String msg) {
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.setBroadcast(true);
+
+            byte[] buffer = msg.getBytes();
+            InetAddress address = InetAddress.getByName("255.255.255.255");
+
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, address, DEFAULT_PORT);
+            socket.send(packet);
+
+            System.out.println(myIp + " (broadcast) > " + msg);
+
+        } catch (IOException e) {
+            System.out.println("Broadcast error: " + e.getMessage());
+        }
+    }
+
+    // ================== SERVER TCP ==================
     private static class ServerThread implements Runnable {
         private ServerSocket serverSocket;
         private final int port;
@@ -157,15 +205,37 @@ public class JMessenger {
         }
     }
 
-    private static void sendMessage(String destIp, int port, String msg) {
-        try (Socket socket = new Socket(destIp, port);
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+    // ================== SERVER UDP ==================
+    private static class UdpServerThread implements Runnable {
+        private final int port;
+        private boolean running = true;
 
-            out.println(msg);
-            System.out.println(myIp + " > " + msg);
+        public UdpServerThread(int port) {
+            this.port = port;
+        }
 
-        } catch (IOException e) {
-            System.out.println("Send error: " + e.getMessage());
+        @Override
+        public void run() {
+            try (DatagramSocket socket = new DatagramSocket(port)) {
+
+                byte[] buffer = new byte[1024];
+
+                while (running) {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                    socket.receive(packet);
+
+                    String msg = new String(packet.getData(), 0, packet.getLength());
+                    String senderIp = packet.getAddress().getHostAddress();
+
+                    synchronized (System.out) {
+                        System.out.println("\n" + senderIp + " (broadcast) > " + msg);
+                        System.out.print("> ");
+                    }
+                }
+
+            } catch (IOException e) {
+                System.out.println("UDP server error: " + e.getMessage());
+            }
         }
     }
 }
