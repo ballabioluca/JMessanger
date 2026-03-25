@@ -1,6 +1,7 @@
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 public class JMessenger {
     private static int currentPort = 5000;
@@ -13,9 +14,12 @@ public class JMessenger {
         myIp = getRealIp();
         Scanner sc = new Scanner(System.in);
 
-        System.out.println("JMessenger Hybrid [P2P + Group]");
-        System.out.println("Your IP: " + myIp + " | Port: " + currentPort);
+        // --- IL TUO INIZIO PROGRAMMA CON COPYRIGHT ---
+        System.out.println("JMessenger CLI [Version 2.8]");
+        System.out.println("Copyright (c) 202X. Free use.");
+        System.out.println("Local IP: " + myIp + " | Port: " + currentPort);
         System.out.println("Type 'help' for commands.\n");
+        // ----------------------------------------------
 
         startServer();
 
@@ -33,6 +37,10 @@ public class JMessenger {
                     printHelp();
                     break;
 
+                case "scan":
+                    scanNetwork();
+                    break;
+
                 // --- SINGLE P2P COMMANDS ---
                 case "ip":
                     if (!argsStr.isEmpty()) {
@@ -43,23 +51,12 @@ public class JMessenger {
                     }
                     break;
 
-                // --- GROUP COMMANDS ---
                 case "add":
                     if (!argsStr.isEmpty()) {
                         groupList.add(argsStr);
                         System.out.println("Added to group: " + argsStr);
-                    }
-                    break;
-
-                case "remove":
-                    if (!argsStr.isEmpty()) {
-                        if (groupList.remove(argsStr)) {
-                            System.out.println("Removed from group: " + argsStr);
-                        } else {
-                            System.out.println("IP not found in group: " + argsStr);
-                        }
                     } else {
-                        System.out.println("Usage: remove <address>");
+                        System.out.println("Usage: add <address>");
                     }
                     break;
 
@@ -73,47 +70,74 @@ public class JMessenger {
                     break;
 
                 case "info":
-                    System.out.println("Local IP: " + myIp);
-                    System.out.println("Single Target: " + (singleDestIp != null ? singleDestIp : "None"));
-                    System.out.println("Group Size: " + groupList.size());
+                    System.out.println("Local: " + myIp + ":" + currentPort);
+                    System.out.println("Target: " + (singleDestIp != null ? singleDestIp : "None"));
+                    System.out.println("Group List: " + groupList);
                     break;
 
                 case "exit":
                     if (serverThread != null) serverThread.stopServer();
+                    System.out.println("Exiting...");
+                    System.exit(0);
                     return;
 
                 default:
                     handleMessaging(input);
                     break;
             }
+            System.out.println(); // Riga vuota dopo ogni comando
         }
     }
 
     private static void printHelp() {
-        System.out.println("\nAvailable commands:");
-        System.out.println("ip <address>     - Set a single recipient for 1-to-1 chat");
-        System.out.println("add <address>    - Add an IP to the group list");
-        System.out.println("remove <address> - Removes an IP to the group list");
-        System.out.println("list             - Show all group members");
-        System.out.println("clearlist        - Remove everyone from the group");
-        System.out.println("info             - Show connection status");
-        System.out.println("exit             - Quit");
+        System.out.println("\nCommands:");
+        System.out.println("scan            - Search for JMessenger users on local network");
+        System.out.println("ip <address>    - Set single recipient for 1-to-1");
+        System.out.println("add <address>   - Add IP to group list");
+        System.out.println("list            - Show all group members");
+        System.out.println("clearlist       - Remove all from group");
+        System.out.println("info / exit     - System info and quit");
+    }
+
+    private static void scanNetwork() {
+        String subnet = myIp.substring(0, myIp.lastIndexOf('.') + 1);
+        System.out.println("Scanning subnet " + subnet + "0/24...");
+
+        ExecutorService executor = Executors.newFixedThreadPool(30);
+        List<String> foundIps = Collections.synchronizedList(new ArrayList<>());
+
+        for (int i = 1; i < 255; i++) {
+            final String targetIp = subnet + i;
+            if (targetIp.equals(myIp)) continue;
+
+            executor.submit(() -> {
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress(targetIp, currentPort), 200);
+                    foundIps.add(targetIp);
+                } catch (IOException ignored) {}
+            });
+        }
+
+        executor.shutdown();
+        try {
+            executor.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {}
+
+        if (foundIps.isEmpty()) {
+            System.out.println("No users found.");
+        } else {
+            System.out.println("Found " + foundIps.size() + " user(s): " + foundIps);
+        }
     }
 
     private static void handleMessaging(String msg) {
-        // Se la lista di gruppo non è vuota, invia a tutti (incluso il singleDestIp se presente)
         if (!groupList.isEmpty()) {
-            for (String ip : groupList) {
-                sendUnicast(ip, msg, false);
-            }
+            for (String ip : groupList) sendUnicast(ip, msg, false);
             System.out.println("You (Group) > " + msg);
-        }
-        // Altrimenti, se è impostato solo un IP singolo, invia solo a quello
-        else if (singleDestIp != null) {
+        } else if (singleDestIp != null) {
             sendUnicast(singleDestIp, msg, true);
-        }
-        else {
-            System.out.println("Error: No recipient or group list set. Use 'ip' or 'add'.");
+        } else {
+            System.out.println("Error: Set an IP first (ip <addr> or add <addr>).");
         }
     }
 
@@ -124,12 +148,10 @@ public class JMessenger {
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 out.println(msg);
                 if (printLabel) {
-                    synchronized (System.out) {
-                        System.out.println("You > " + msg);
-                    }
+                    synchronized (System.out) { System.out.println("You > " + msg); }
                 }
             } catch (IOException e) {
-                System.err.println("\n[System] Failed to reach: " + ip);
+                System.err.println("\n[System] Offline: " + ip);
             }
         }).start();
     }
@@ -159,14 +181,11 @@ public class JMessenger {
         private ServerSocket serverSocket;
         private final int port;
         private volatile boolean running = true;
-
         public ServerThread(int port) { this.port = port; }
-
         public void stopServer() {
             running = false;
             try { if (serverSocket != null) serverSocket.close(); } catch (IOException ignored) {}
         }
-
         @Override
         public void run() {
             try (ServerSocket ss = new ServerSocket(port)) {
@@ -175,11 +194,8 @@ public class JMessenger {
                     Socket client = ss.accept();
                     new Thread(() -> handleClient(client)).start();
                 }
-            } catch (IOException e) {
-                if (running) System.out.println("Server error.");
-            }
+            } catch (IOException e) { if (running) System.out.println("Server error."); }
         }
-
         private void handleClient(Socket socket) {
             try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                 String msg = in.readLine();

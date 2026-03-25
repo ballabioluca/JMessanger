@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/JMessanger.iml" filepath="$PROJECT_DIR$/JMessanger.iml" />
+      <module fileurl="file://$PROJECT_DIR$/JMessenger.iml" filepath="$PROJECT_DIR$/JMessenger.iml" />
     </modules>
   </component>
 </project>
