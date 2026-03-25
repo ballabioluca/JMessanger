@@ -86,6 +86,7 @@ public class JMessenger {
                     }
                     break;
             }
+            System.out.println(); // Riga vuota dopo ogni comando
         }
     }
 
@@ -117,7 +118,6 @@ public class JMessenger {
                 if (serverSocket != null) serverSocket.close();
             } catch (IOException ignored) {}
         }
-
         @Override
         public void run() {
             try (ServerSocket ss = new ServerSocket(port)) {
@@ -135,7 +135,6 @@ public class JMessenger {
                 System.out.println("Server could not start: " + e.getMessage());
             }
         }
-
         private void handleClient(Socket socket) {
             try (BufferedReader in = new BufferedReader(
                     new InputStreamReader(socket.getInputStream()))) {
