@@ -60,6 +60,18 @@ public class JMessenger {
                     }
                     break;
 
+                case "remove":
+                    if (!argsStr.isEmpty()) {
+                        if (groupList.remove(argsStr)) {
+                            System.out.println("Removed from group: " + argsStr);
+                        } else {
+                            System.out.println("IP not found in group: " + argsStr);
+                        }
+                    } else {
+                        System.out.println("Usage: remove <address>");
+                    }
+                    break;
+
                 case "list":
                     System.out.println("Group contacts: " + groupList);
                     break;
@@ -91,12 +103,13 @@ public class JMessenger {
 
     private static void printHelp() {
         System.out.println("\nCommands:");
-        System.out.println("scan            - Search for JMessenger users on local network");
-        System.out.println("ip <address>    - Set single recipient for 1-to-1");
-        System.out.println("add <address>   - Add IP to group list");
-        System.out.println("list            - Show all group members");
-        System.out.println("clearlist       - Remove all from group");
-        System.out.println("info / exit     - System info and quit");
+        System.out.println("scan             - Search for JMessenger users on local network");
+        System.out.println("ip <address>     - Set single recipient for 1-to-1");
+        System.out.println("add <address>    - Add IP to group list");
+        System.out.println("remove <address> - Remove IP to group list");
+        System.out.println("list             - Show all group members");
+        System.out.println("clearlist        - Remove all from group");
+        System.out.println("info / exit      - System info and quit");
     }
 
     private static void scanNetwork() {
