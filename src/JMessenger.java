@@ -19,7 +19,6 @@ public class JMessenger {
         System.out.println("Copyright (c) 202X. Free use.");
         System.out.println("Local IP: " + myIp + " | Port: " + currentPort);
         System.out.println("Type 'help' for commands.\n");
-        // ----------------------------------------------
 
         startServer();
 
