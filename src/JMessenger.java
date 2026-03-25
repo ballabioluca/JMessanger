@@ -41,6 +41,7 @@ public class JMessenger {
                     scanNetwork();
                     break;
 
+                // --- SINGLE P2P COMMANDS ---
                 case "ip":
                     if (!argsStr.isEmpty()) {
                         singleDestIp = argsStr;
