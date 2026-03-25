@@ -51,6 +51,18 @@ public class JMessenger {
                     }
                     break;
 
+                case "remove":
+                    if (!argsStr.isEmpty()) {
+                        if (groupList.remove(argsStr)) {
+                            System.out.println("Removed from group: " + argsStr);
+                        } else {
+                            System.out.println("IP not found in group: " + argsStr);
+                        }
+                    } else {
+                        System.out.println("Usage: remove <address>");
+                    }
+                    break;
+
                 case "list":
                     System.out.println("Group contacts: " + groupList);
                     break;
@@ -79,12 +91,13 @@ public class JMessenger {
 
     private static void printHelp() {
         System.out.println("\nAvailable commands:");
-        System.out.println("ip <address>    - Set a single recipient for 1-to-1 chat");
-        System.out.println("add <address>   - Add an IP to the group list");
-        System.out.println("list            - Show all group members");
-        System.out.println("clearlist       - Remove everyone from the group");
-        System.out.println("info            - Show connection status");
-        System.out.println("exit            - Quit");
+        System.out.println("ip <address>     - Set a single recipient for 1-to-1 chat");
+        System.out.println("add <address>    - Add an IP to the group list");
+        System.out.println("remove <address> - Removes an IP to the group list");
+        System.out.println("list             - Show all group members");
+        System.out.println("clearlist        - Remove everyone from the group");
+        System.out.println("info             - Show connection status");
+        System.out.println("exit             - Quit");
     }
 
     private static void handleMessaging(String msg) {
