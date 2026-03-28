@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class JMessenger {
-    private static int currentPort = 5000;
+    private static final int currentPort = 5000;
     private static String singleDestIp = null;
     private static final Set<String> groupList = new LinkedHashSet<>();
     private static ServerThread serverThread = null;
@@ -14,7 +14,7 @@ public class JMessenger {
         myIp = getRealIp();
         Scanner sc = new Scanner(System.in);
 
-        System.out.println("JMessenger CLI [Version 2.8]");
+        System.out.println("JMessenger CLI [Version 2.9]");
         System.out.println("Copyright (c) 202X. Free use.");
         System.out.println("Local IP: " + myIp + " | Port: " + currentPort);
         System.out.println("Type 'help' for commands.\n");
@@ -166,6 +166,7 @@ public class JMessenger {
 
         executor.shutdown();
         try {
+            //noinspection ResultOfMethodCallIgnored
             executor.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException ignored) {}
         return foundIps;
