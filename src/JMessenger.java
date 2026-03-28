@@ -14,7 +14,6 @@ public class JMessenger {
         myIp = getRealIp();
         Scanner sc = new Scanner(System.in);
 
-        // --- IL TUO INIZIO PROGRAMMA CON COPYRIGHT ---
         System.out.println("JMessenger CLI [Version 2.8]");
         System.out.println("Copyright (c) 202X. Free use.");
         System.out.println("Local IP: " + myIp + " | Port: " + currentPort);
@@ -40,7 +39,10 @@ public class JMessenger {
                     scanNetwork();
                     break;
 
-                // --- SINGLE P2P COMMANDS ---
+                case "autogroup":
+                    autogroupNetwork();
+                    break;
+
                 case "ip":
                     if (!argsStr.isEmpty()) {
                         singleDestIp = argsStr;
@@ -71,11 +73,11 @@ public class JMessenger {
                     }
                     break;
 
-                case "list":
+                case "showgroup":
                     System.out.println("Group contacts: " + groupList);
                     break;
 
-                case "clearlist":
+                case "cleargroup":
                     groupList.clear();
                     System.out.println("Group list cleared.");
                     break;
@@ -96,7 +98,7 @@ public class JMessenger {
                     handleMessaging(input);
                     break;
             }
-            System.out.println(); // Riga vuota dopo ogni comando
+            System.out.println();
         }
     }
 
@@ -104,17 +106,49 @@ public class JMessenger {
         System.out.println("\nCommands:");
         System.out.println("scan             - Search for JMessenger users on local network");
         System.out.println("ip <address>     - Set single recipient for 1-to-1");
-        System.out.println("add <address>    - Add IP to group list");
-        System.out.println("remove <address> - Remove IP to group list");
-        System.out.println("list             - Show all group members");
-        System.out.println("clearlist        - Remove all from group");
+        System.out.println("add <address>    - Add IP to group");
+        System.out.println("remove <address> - Remove IP to group");
+        System.out.println("showgroup        - Show all group members");
+        System.out.println("autogroup        - Scan for users and automatically add them to group");
+        System.out.println("cleargroup       - Remove all users from group");
         System.out.println("info / exit      - System info and quit");
     }
 
-    private static void scanNetwork() {
-        String subnet = myIp.substring(0, myIp.lastIndexOf('.') + 1);
-        System.out.println("Scanning subnet " + subnet + "0/24...");
+    private static void autogroupNetwork() {
+        System.out.println("Scanning and grouping...");
+        List<String> foundIps = performNetworkScan();
 
+        if (foundIps.isEmpty()) {
+            System.out.println("No new users found to add.");
+        } else {
+            int newUsers = 0;
+            for (String ip : foundIps) {
+                if (groupList.add(ip)) {
+                    newUsers++;
+                }
+            }
+            if (newUsers > 0) {
+                System.out.println("Found and added " + newUsers + " new user(s).");
+                System.out.println("Updated Group contacts: " + groupList);
+            } else {
+                System.out.println("No new users found. Group list is already up to date.");
+            }
+        }
+    }
+
+    private static void scanNetwork() {
+        System.out.println("Scanning subnet " + myIp.substring(0, myIp.lastIndexOf('.') + 1) + "0/24...");
+        List<String> foundIps = performNetworkScan();
+
+        if (foundIps.isEmpty()) {
+            System.out.println("No users found.");
+        } else {
+            System.out.println("Found " + foundIps.size() + " user(s): " + foundIps);
+        }
+    }
+
+    private static List<String> performNetworkScan() {
+        String subnet = myIp.substring(0, myIp.lastIndexOf('.') + 1);
         ExecutorService executor = Executors.newFixedThreadPool(30);
         List<String> foundIps = Collections.synchronizedList(new ArrayList<>());
 
@@ -134,12 +168,7 @@ public class JMessenger {
         try {
             executor.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException ignored) {}
-
-        if (foundIps.isEmpty()) {
-            System.out.println("No users found.");
-        } else {
-            System.out.println("Found " + foundIps.size() + " user(s): " + foundIps);
-        }
+        return foundIps;
     }
 
     private static void handleMessaging(String msg) {
